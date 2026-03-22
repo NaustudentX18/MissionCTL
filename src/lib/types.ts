@@ -2,18 +2,23 @@
 // Core Types for MissionCTL
 // ============================================================
 
-export type AIProvider = 'claude' | 'openai' | 'gemini' | 'groq';
+export type AIProvider =
+  | 'claude' | 'openai' | 'gemini' | 'groq'
+  | 'openrouter' | 'xai' | 'mistral' | 'cohere' | 'perplexity'
+  | 'together' | 'fireworks' | 'huggingface' | 'deepseek'
+  | 'ollama' | 'azure' | 'bedrock' | 'replicate';
 
 export interface ProviderConfig {
   id: AIProvider;
   name: string;
   color: string;
-  glowClass: string;
-  borderClass: string;
-  textClass: string;
-  bgClass: string;
   icon: string;
   website: string;
+  accent: 'purple' | 'green' | 'blue' | 'amber';
+  keyHint: string;
+  keyPrefix?: string;
+  isLocal?: boolean;
+  requiresBaseUrl?: boolean;
 }
 
 export interface APIKey {
@@ -22,6 +27,7 @@ export interface APIKey {
   isValid: boolean | null;
   lastTested: string | null;
   accountInfo?: AccountInfo;
+  baseUrl?: string;
 }
 
 export interface AccountInfo {
@@ -34,6 +40,7 @@ export interface AccountInfo {
 }
 
 export interface TokenUsage {
+  id: string;
   provider: AIProvider;
   model: string;
   date: string;
@@ -60,8 +67,8 @@ export interface ModelInfo {
   id: string;
   provider: AIProvider;
   name: string;
-  inputCostPer1M: number;  // USD per 1M input tokens
-  outputCostPer1M: number; // USD per 1M output tokens
+  inputCostPer1M: number;
+  outputCostPer1M: number;
   contextWindow: number;
   description: string;
   strengths: TaskType[];
@@ -75,7 +82,7 @@ export interface EfficiencyScore {
   provider: AIProvider;
   model: string;
   task: TaskType;
-  score: number; // 0-100
+  score: number;
   valueRating: string;
   costPerTask: number;
   qualityRating: number;
@@ -107,16 +114,29 @@ export interface PromptTemplate {
 export interface BridgeResult {
   provider: AIProvider;
   model: string;
+  modelName: string;
   estimatedCost: number;
   estimatedTokens: number;
   inputTokens: number;
   outputTokens: number;
+  inputCost: number;
+  outputCost: number;
   costBreakdown: string;
 }
 
 export interface BridgeQuery {
   prompt: string;
-  estimatedOutputMultiplier: number; // expected output / input ratio
+  estimatedOutputMultiplier: number;
+}
+
+export type Theme = 'dark' | 'light';
+
+export interface ExportData {
+  version: '1';
+  exportedAt: string;
+  apiKeys: Partial<Record<AIProvider, { key: string; baseUrl?: string }>>;
+  prompts: PromptTemplate[];
+  enabledProviders: AIProvider[];
 }
 
 export interface AppState {
@@ -127,4 +147,6 @@ export interface AppState {
   newsItems: NewsItem[];
   activeTab: string;
   isLoading: boolean;
+  enabledProviders: AIProvider[];
+  theme: Theme;
 }

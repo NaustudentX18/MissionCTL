@@ -1,10 +1,18 @@
 'use client';
 
+import { useState } from 'react';
 import { ApiKeyForm } from '@/components/vault/ApiKeyForm';
-import { PROVIDER_LIST } from '@/lib/providers';
-import { Shield, Lock, AlertTriangle } from 'lucide-react';
+import { PROVIDER_LIST, PROVIDERS } from '@/lib/providers';
+import { useMissionStore } from '@/lib/store';
+import { Shield, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 
 export function VaultView() {
+  const enabledProviders = useMissionStore(s => s.enabledProviders);
+  const [showMore, setShowMore] = useState(false);
+
+  const activeProviders = PROVIDER_LIST.filter(p => enabledProviders.includes(p));
+  const inactiveProviders = PROVIDER_LIST.filter(p => !enabledProviders.includes(p));
+
   return (
     <div className="space-y-6">
       {/* Security notice */}
@@ -14,8 +22,7 @@ export function VaultView() {
           <div className="text-sm font-mono font-semibold text-amber-400 mb-1">Security Notice</div>
           <p className="text-xs text-slate-500 font-mono leading-relaxed">
             API keys are stored locally in your browser&apos;s localStorage and never sent to any server.
-            Key validation calls are routed through the local Next.js API to prevent CORS issues.
-            Never share your API keys with third parties.
+            Validation calls are proxied through Next.js to prevent CORS issues. Never share your keys.
           </p>
         </div>
       </div>
@@ -27,62 +34,63 @@ export function VaultView() {
         </div>
         <div>
           <h2 className="font-mono font-bold text-white">Universal Vault</h2>
-          <p className="text-xs text-slate-500 font-mono">Manage and validate your AI provider API keys</p>
+          <p className="text-xs text-slate-500 font-mono">
+            {activeProviders.length} active · {PROVIDER_LIST.length} total providers — toggle to show/hide in all views
+          </p>
         </div>
       </div>
 
-      {/* API key forms */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {PROVIDER_LIST.map(provider => (
-          <ApiKeyForm key={provider} provider={provider} />
-        ))}
-      </div>
-
-      {/* Instructions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {[
-          {
-            provider: 'Claude',
-            icon: '◆',
-            url: 'console.anthropic.com/keys',
-            hint: 'Starts with sk-ant-api03-',
-            color: 'text-purple-400',
-          },
-          {
-            provider: 'OpenAI',
-            icon: '⬡',
-            url: 'platform.openai.com/api-keys',
-            hint: 'Starts with sk-proj- or sk-',
-            color: 'text-emerald-400',
-          },
-          {
-            provider: 'Gemini',
-            icon: '✦',
-            url: 'aistudio.google.com/app/apikey',
-            hint: 'Starts with AIzaSy',
-            color: 'text-blue-400',
-          },
-          {
-            provider: 'Groq',
-            icon: '⚡',
-            url: 'console.groq.com/keys',
-            hint: 'Starts with gsk_',
-            color: 'text-amber-400',
-          },
-        ].map(item => (
-          <div key={item.provider} className="flex items-center gap-3 p-3 bg-[#0f0f18] border border-[#1a1a2e] rounded-lg">
-            <Lock size={14} className="text-slate-600 flex-shrink-0" />
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className={item.color}>{item.icon}</span>
-                <span className="text-xs font-mono text-slate-400">{item.provider}:</span>
-                <span className="text-xs font-mono text-slate-600 truncate">{item.hint}</span>
-              </div>
-              <span className="text-xs text-slate-700 font-mono">{item.url}</span>
-            </div>
+      {/* Active providers */}
+      {activeProviders.length > 0 && (
+        <div>
+          <div className="text-xs text-slate-500 font-mono uppercase tracking-wider mb-3">
+            Active Providers ({activeProviders.length})
           </div>
-        ))}
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {activeProviders.map(provider => (
+              <ApiKeyForm key={provider} provider={provider} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Inactive / hidden providers */}
+      {inactiveProviders.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowMore(v => !v)}
+            className="flex items-center gap-2 text-xs text-slate-500 font-mono uppercase tracking-wider mb-3 hover:text-slate-300 transition-colors"
+          >
+            {showMore ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            More Providers ({inactiveProviders.length} hidden)
+          </button>
+
+          {showMore && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {inactiveProviders.map(provider => (
+                <ApiKeyForm key={provider} provider={provider} />
+              ))}
+            </div>
+          )}
+
+          {!showMore && (
+            <div className="flex flex-wrap gap-2">
+              {inactiveProviders.map(p => {
+                const config = PROVIDERS[p];
+                return (
+                  <div
+                    key={p}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#1a1a2e] text-xs font-mono text-slate-600"
+                  >
+                    <span style={{ color: config.color }}>{config.icon}</span>
+                    {config.name}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

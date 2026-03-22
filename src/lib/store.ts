@@ -1,15 +1,20 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { AIProvider, APIKey, DailyUsage, NewsItem, PromptTemplate, TokenUsage } from './types';
+import type { AIProvider, APIKey, DailyUsage, ExportData, NewsItem, PromptTemplate, Theme, TokenUsage } from './types';
 import { generateMockDailyUsage } from './utils';
-import { PROVIDER_LIST } from './providers';
+import { CORE_PROVIDERS, PROVIDER_LIST } from './providers';
 
 interface MissionStore {
   // API Keys
   apiKeys: Record<AIProvider, APIKey>;
-  setApiKey: (provider: AIProvider, key: string) => void;
+  setApiKey: (provider: AIProvider, key: string, baseUrl?: string) => void;
   setKeyValidation: (provider: AIProvider, isValid: boolean, accountInfo?: APIKey['accountInfo']) => void;
   clearApiKey: (provider: AIProvider) => void;
+
+  // Enabled Providers
+  enabledProviders: AIProvider[];
+  toggleProvider: (provider: AIProvider) => void;
+  setEnabledProviders: (providers: AIProvider[]) => void;
 
   // Usage Data
   tokenUsage: TokenUsage[];
@@ -29,9 +34,18 @@ interface MissionStore {
   deletePrompt: (id: string) => void;
   incrementPromptUsage: (id: string) => void;
 
+  // Theme
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+  toggleTheme: () => void;
+
   // UI State
   activeTab: string;
   setActiveTab: (tab: string) => void;
+
+  // Export / Import
+  exportData: () => ExportData;
+  importData: (data: ExportData) => void;
 }
 
 const defaultApiKey = (provider: AIProvider): APIKey => ({
@@ -128,18 +142,21 @@ Consider: reliability, scalability, maintainability, and cost optimization.`,
   },
 ];
 
+const buildDefaultApiKeys = (): Record<AIProvider, APIKey> =>
+  Object.fromEntries(
+    PROVIDER_LIST.map(p => [p, defaultApiKey(p)])
+  ) as Record<AIProvider, APIKey>;
+
 export const useMissionStore = create<MissionStore>()(
   persist(
     (set, get) => ({
-      apiKeys: Object.fromEntries(
-        PROVIDER_LIST.map(p => [p, defaultApiKey(p)])
-      ) as Record<AIProvider, APIKey>,
+      apiKeys: buildDefaultApiKeys(),
 
-      setApiKey: (provider, key) =>
+      setApiKey: (provider, key, baseUrl) =>
         set(state => ({
           apiKeys: {
             ...state.apiKeys,
-            [provider]: { ...state.apiKeys[provider], key, isValid: null, lastTested: null },
+            [provider]: { ...state.apiKeys[provider], key, isValid: null, lastTested: null, baseUrl },
           },
         })),
 
@@ -164,11 +181,22 @@ export const useMissionStore = create<MissionStore>()(
           },
         })),
 
+      enabledProviders: CORE_PROVIDERS,
+
+      toggleProvider: (provider) =>
+        set(state => ({
+          enabledProviders: state.enabledProviders.includes(provider)
+            ? state.enabledProviders.filter(p => p !== provider)
+            : [...state.enabledProviders, provider],
+        })),
+
+      setEnabledProviders: (providers) => set({ enabledProviders: providers }),
+
       tokenUsage: [],
       dailyUsage: generateMockDailyUsage(7),
 
       addTokenUsage: (usage) =>
-        set(state => ({ tokenUsage: [...state.tokenUsage, usage] })),
+        set(state => ({ tokenUsage: [usage, ...state.tokenUsage].slice(0, 500) })),
 
       setDailyUsage: (usage) => set({ dailyUsage: usage }),
 
@@ -212,8 +240,49 @@ export const useMissionStore = create<MissionStore>()(
           ),
         })),
 
+      theme: 'dark',
+      setTheme: (theme) => set({ theme }),
+      toggleTheme: () => set(state => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
+
       activeTab: 'dashboard',
       setActiveTab: (tab) => set({ activeTab: tab }),
+
+      exportData: () => {
+        const state = get();
+        const keys: Partial<Record<AIProvider, { key: string; baseUrl?: string }>> = {};
+        for (const p of PROVIDER_LIST) {
+          if (state.apiKeys[p]?.key) {
+            keys[p] = { key: state.apiKeys[p].key, baseUrl: state.apiKeys[p].baseUrl };
+          }
+        }
+        return {
+          version: '1',
+          exportedAt: new Date().toISOString(),
+          apiKeys: keys,
+          prompts: state.prompts,
+          enabledProviders: state.enabledProviders,
+        } satisfies ExportData;
+      },
+
+      importData: (data: ExportData) => {
+        set(state => {
+          const newApiKeys = { ...state.apiKeys };
+          for (const [provider, val] of Object.entries(data.apiKeys ?? {})) {
+            if (PROVIDER_LIST.includes(provider as AIProvider) && val?.key) {
+              newApiKeys[provider as AIProvider] = {
+                ...defaultApiKey(provider as AIProvider),
+                key: val.key,
+                baseUrl: val.baseUrl,
+              };
+            }
+          }
+          return {
+            apiKeys: newApiKeys,
+            prompts: data.prompts ?? state.prompts,
+            enabledProviders: data.enabledProviders ?? state.enabledProviders,
+          };
+        });
+      },
     }),
     {
       name: 'missionctl-store',
@@ -221,7 +290,20 @@ export const useMissionStore = create<MissionStore>()(
         apiKeys: state.apiKeys,
         prompts: state.prompts,
         dailyUsage: state.dailyUsage,
+        enabledProviders: state.enabledProviders,
+        theme: state.theme,
       }),
+      merge: (persisted, initial) => {
+        const p = persisted as Partial<MissionStore>;
+        return {
+          ...initial,
+          ...p,
+          // Ensure all providers have a default key entry even after upgrade
+          apiKeys: { ...initial.apiKeys, ...(p.apiKeys ?? {}) },
+          enabledProviders: p.enabledProviders ?? initial.enabledProviders,
+          theme: p.theme ?? initial.theme,
+        };
+      },
     }
   )
 );

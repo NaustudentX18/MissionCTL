@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 interface CyberCardProps {
   children: ReactNode;
   className?: string;
+  style?: React.CSSProperties;
   accent?: 'purple' | 'green' | 'blue' | 'amber' | 'none';
   onClick?: () => void;
   hoverable?: boolean;
@@ -19,10 +20,11 @@ const ACCENT_MAP = {
   none: 'before:from-transparent',
 };
 
-export function CyberCard({ children, className, accent = 'purple', onClick, hoverable = false }: CyberCardProps) {
+export function CyberCard({ children, className, style, accent = 'purple', onClick, hoverable = false }: CyberCardProps) {
   return (
     <div
       onClick={onClick}
+      style={style}
       className={cn(
         'relative overflow-hidden rounded-xl border border-[#1a1a2e] bg-[#0f0f18]',
         'before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:to-transparent before:via-white/10',

@@ -48,31 +48,31 @@ export function formatDateTime(iso: string): string {
 // Efficiency Score Algorithm
 // ============================================================
 
-export function calculateEfficiencyScores(task: TaskType): EfficiencyScore[] {
+export function calculateEfficiencyScores(task: TaskType, enabledProviders?: AIProvider[]): EfficiencyScore[] {
   const scores: EfficiencyScore[] = [];
 
   // Assume ~500 input + ~1000 output tokens per average task
   const avgInputTokens = 500;
   const avgOutputTokens = 1000;
 
-  for (const model of MODELS) {
+  const modelsToScore = enabledProviders
+    ? MODELS.filter(m => enabledProviders.includes(m.provider))
+    : MODELS;
+
+  for (const model of modelsToScore) {
     const qualityScores = TASK_QUALITY_SCORES[model.id];
     if (!qualityScores) continue;
 
     const qualityScore = qualityScores[task];
     const speedScore = SPEED_SCORES[model.id] ?? 50;
 
-    // Cost per typical task in microdollars
     const costPerTask =
       (avgInputTokens / 1_000_000) * model.inputCostPer1M +
       (avgOutputTokens / 1_000_000) * model.outputCostPer1M;
 
-    // Value = quality / (cost * 1000 + 0.5) - higher quality at lower cost = better value
-    // Normalize cost: $0.01 task → cost factor 1.0
+    // Free models (Ollama, HF) get a cost factor of 0.001 to avoid divide-by-zero
     const costFactor = Math.max(0.001, costPerTask * 100);
     const valueRaw = (qualityScore * speedScore) / (costFactor * 10);
-
-    // Normalize to 0-100
     const score = Math.min(100, Math.round(valueRaw));
 
     let valueRating: string;
@@ -101,13 +101,23 @@ export function calculateEfficiencyScores(task: TaskType): EfficiencyScore[] {
 // Token Cost Calculator (AI Bridge)
 // ============================================================
 
-export function calculateBridgeCosts(prompt: string, outputMultiplier = 3): BridgeResult[] {
-  // Estimate tokens: ~4 chars per token
+export function calculateBridgeCosts(
+  prompt: string,
+  outputMultiplier = 3,
+  enabledProviders?: AIProvider[],
+  selectedModelIds?: string[],
+): BridgeResult[] {
   const inputTokens = Math.ceil(prompt.length / 4);
   const outputTokens = Math.ceil(inputTokens * outputMultiplier);
   const results: BridgeResult[] = [];
 
-  for (const model of MODELS) {
+  const modelsToCompare = MODELS.filter(m => {
+    if (enabledProviders && !enabledProviders.includes(m.provider)) return false;
+    if (selectedModelIds && selectedModelIds.length > 0 && !selectedModelIds.includes(m.id)) return false;
+    return true;
+  });
+
+  for (const model of modelsToCompare) {
     const inputCost = (inputTokens / 1_000_000) * model.inputCostPer1M;
     const outputCost = (outputTokens / 1_000_000) * model.outputCostPer1M;
     const totalCost = inputCost + outputCost;
@@ -115,10 +125,13 @@ export function calculateBridgeCosts(prompt: string, outputMultiplier = 3): Brid
     results.push({
       provider: model.provider,
       model: model.id,
+      modelName: model.name,
       estimatedCost: totalCost,
       estimatedTokens: inputTokens + outputTokens,
       inputTokens,
       outputTokens,
+      inputCost,
+      outputCost,
       costBreakdown: `${formatCost(inputCost)} in + ${formatCost(outputCost)} out`,
     });
   }
@@ -139,7 +152,6 @@ export function generateMockDailyUsage(days = 7): DailyUsage[] {
     date.setDate(date.getDate() - i);
     const dateStr = date.toISOString().split('T')[0];
 
-    // Simulate realistic usage patterns
     const factor = 0.5 + Math.random() * 1.0;
     const dayOfWeek = date.getDay();
     const weekendFactor = (dayOfWeek === 0 || dayOfWeek === 6) ? 0.4 : 1;
@@ -161,7 +173,7 @@ export function generateMockDailyUsage(days = 7): DailyUsage[] {
 }
 
 export function getProviderColor(provider: AIProvider): string {
-  return PROVIDERS[provider].color;
+  return PROVIDERS[provider]?.color ?? '#6b7280';
 }
 
 export function getModelById(id: string): ModelInfo | undefined {
@@ -175,8 +187,13 @@ export function maskApiKey(key: string): string {
 
 export function classifyProvider(key: string): AIProvider | null {
   if (key.startsWith('sk-ant-')) return 'claude';
-  if (key.startsWith('sk-') && !key.startsWith('sk-ant-')) return 'openai';
-  if (key.startsWith('AIza')) return 'gemini';
+  if (key.startsWith('sk-or-')) return 'openrouter';
+  if (key.startsWith('xai-')) return 'xai';
+  if (key.startsWith('pplx-')) return 'perplexity';
+  if (key.startsWith('hf_')) return 'huggingface';
+  if (key.startsWith('r8_')) return 'replicate';
   if (key.startsWith('gsk_')) return 'groq';
+  if (key.startsWith('AIza')) return 'gemini';
+  if (key.startsWith('sk-')) return 'openai';
   return null;
 }

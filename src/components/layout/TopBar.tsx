@@ -4,59 +4,65 @@ import { useMissionStore } from '@/lib/store';
 import { PROVIDER_LIST, PROVIDERS } from '@/lib/providers';
 
 const TAB_TITLES: Record<string, { title: string; subtitle: string }> = {
-  dashboard: { title: 'Pulse Dashboard', subtitle: 'Real-time AI monitoring & news feed' },
-  vault: { title: 'Universal Vault', subtitle: 'Secure API key management' },
-  insights: { title: 'Deep Insights', subtitle: 'Efficiency scores & analytics' },
-  prompts: { title: 'Prompt Library', subtitle: 'Master prompts at your fingertips' },
-  bridge: { title: 'AI Bridge', subtitle: 'Cross-model cost comparison' },
+  dashboard: { title: 'Pulse Dashboard',  subtitle: 'Real-time AI monitoring & news feed' },
+  vault:     { title: 'Universal Vault',  subtitle: 'Secure API key management' },
+  insights:  { title: 'Deep Insights',    subtitle: 'Efficiency scores & analytics' },
+  prompts:   { title: 'Prompt Library',   subtitle: 'Master prompts at your fingertips' },
+  bridge:    { title: 'AI Bridge',        subtitle: 'Cross-model cost comparison' },
+  settings:  { title: 'Settings',         subtitle: 'Providers, theme & backup' },
 };
 
 export function TopBar() {
   const activeTab = useMissionStore(s => s.activeTab);
   const apiKeys = useMissionStore(s => s.apiKeys);
+  const enabledProviders = useMissionStore(s => s.enabledProviders);
 
   const info = TAB_TITLES[activeTab] ?? { title: 'MissionCTL', subtitle: 'AI Command Center' };
-  const connectedCount = PROVIDER_LIST.filter(p => apiKeys[p].isValid === true).length;
+
+  // Only show connected badge for enabled providers
+  const connectedCount = enabledProviders.filter(p => apiKeys[p]?.isValid === true).length;
 
   return (
-    <header className="h-14 border-b border-[#1a1a2e] bg-[#080810]/80 backdrop-blur-sm flex items-center justify-between px-6 sticky top-0 z-30">
-      <div>
-        <h2 className="font-mono font-bold text-white text-sm">{info.title}</h2>
-        <p className="text-xs text-slate-600 font-mono">{info.subtitle}</p>
+    <header className="h-14 border-b border-[#1a1a2e] bg-[#080810]/80 backdrop-blur-sm flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30">
+      <div className="min-w-0">
+        <h2 className="font-mono font-bold text-white text-sm truncate">{info.title}</h2>
+        <p className="text-xs text-slate-600 font-mono hidden sm:block">{info.subtitle}</p>
       </div>
 
-      <div className="flex items-center gap-3">
-        {/* Provider connection indicators */}
-        <div className="hidden sm:flex items-center gap-1.5">
-          {PROVIDER_LIST.map(provider => {
+      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-3">
+        {/* Provider dots (enabled providers only, max 8 shown) */}
+        <div className="hidden sm:flex items-center gap-1">
+          {enabledProviders.slice(0, 8).map(provider => {
             const config = PROVIDERS[provider];
             const key = apiKeys[provider];
-            const isConnected = key.isValid === true;
+            const isConnected = key?.isValid === true;
 
             return (
               <div
                 key={provider}
-                className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-mono border"
+                className="w-6 h-6 rounded-full border flex items-center justify-center text-xs transition-all"
                 style={{
-                  borderColor: isConnected ? `${config.color}40` : '#1a1a2e',
-                  background: isConnected ? `${config.color}10` : 'transparent',
-                  color: isConnected ? config.color : '#4a5568',
+                  borderColor: isConnected ? `${config.color}60` : '#1a1a2e',
+                  background: isConnected ? `${config.color}20` : 'transparent',
+                  color: isConnected ? config.color : '#374151',
                 }}
                 title={`${config.name}: ${isConnected ? 'Connected' : 'Not connected'}`}
               >
-                <span>{config.icon}</span>
-                <span className="hidden md:inline">{config.name}</span>
+                {config.icon}
               </div>
             );
           })}
+          {enabledProviders.length > 8 && (
+            <span className="text-xs text-slate-600 font-mono">+{enabledProviders.length - 8}</span>
+          )}
         </div>
 
         {/* Connected count */}
-        <div className="text-xs font-mono text-slate-600">
+        <div className="text-xs font-mono text-slate-600 whitespace-nowrap">
           <span className={connectedCount > 0 ? 'text-emerald-400' : 'text-slate-600'}>
             {connectedCount}
           </span>
-          <span>/{PROVIDER_LIST.length} connected</span>
+          <span>/{enabledProviders.length}</span>
         </div>
       </div>
     </header>

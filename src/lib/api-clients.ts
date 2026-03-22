@@ -6,11 +6,11 @@
 
 import type { AIProvider, AccountInfo } from './types';
 
-export async function testApiKey(provider: AIProvider, key: string): Promise<AccountInfo> {
+export async function testApiKey(provider: AIProvider, key: string, baseUrl?: string): Promise<AccountInfo> {
   const res = await fetch('/api/validate-key', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ provider, key }),
+    body: JSON.stringify({ provider, key, baseUrl }),
   });
 
   if (!res.ok) {

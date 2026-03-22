@@ -3,25 +3,25 @@
 import { ProviderStatCard } from '@/components/dashboard/ProviderStatCard';
 import { NewsFeed } from '@/components/dashboard/NewsFeed';
 import { TokenChart } from '@/components/dashboard/TokenChart';
-import { PROVIDER_LIST } from '@/lib/providers';
 import { useMissionStore } from '@/lib/store';
 import { formatCost, formatTokens } from '@/lib/utils';
 import { Activity, TrendingUp, Cpu, DollarSign } from 'lucide-react';
 
 export function DashboardView() {
   const dailyUsage = useMissionStore(s => s.dailyUsage);
+  const enabledProviders = useMissionStore(s => s.enabledProviders);
 
-  // Aggregate weekly totals
+  // Aggregate weekly totals for core 4 providers
   const weeklyTotals = dailyUsage.reduce(
     (acc, d) => ({
-      claude: acc.claude + d.claude,
-      openai: acc.openai + d.openai,
-      gemini: acc.gemini + d.gemini,
-      groq: acc.groq + d.groq,
-      claudeCost: acc.claudeCost + d.claudeCost,
-      openaiCost: acc.openaiCost + d.openaiCost,
-      geminiCost: acc.geminiCost + d.geminiCost,
-      groqCost: acc.groqCost + d.groqCost,
+      claude: acc.claude + (enabledProviders.includes('claude') ? d.claude : 0),
+      openai: acc.openai + (enabledProviders.includes('openai') ? d.openai : 0),
+      gemini: acc.gemini + (enabledProviders.includes('gemini') ? d.gemini : 0),
+      groq: acc.groq + (enabledProviders.includes('groq') ? d.groq : 0),
+      claudeCost: acc.claudeCost + (enabledProviders.includes('claude') ? d.claudeCost : 0),
+      openaiCost: acc.openaiCost + (enabledProviders.includes('openai') ? d.openaiCost : 0),
+      geminiCost: acc.geminiCost + (enabledProviders.includes('gemini') ? d.geminiCost : 0),
+      groqCost: acc.groqCost + (enabledProviders.includes('groq') ? d.groqCost : 0),
     }),
     { claude: 0, openai: 0, gemini: 0, groq: 0, claudeCost: 0, openaiCost: 0, geminiCost: 0, groqCost: 0 }
   );
@@ -57,7 +57,7 @@ export function DashboardView() {
           <div className="text-xl font-bold font-mono text-white">
             {formatCost(totalCost / Math.max(1, dailyUsage.length))}
           </div>
-          <div className="text-xs text-slate-600 font-mono">across all providers</div>
+          <div className="text-xs text-slate-600 font-mono">across active providers</div>
         </div>
         <div className="bg-[#0f0f18] border border-[#1a1a2e] rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -65,9 +65,9 @@ export function DashboardView() {
             <span className="text-xs text-slate-500 font-mono">ACTIVE APIs</span>
           </div>
           <div className="text-xl font-bold font-mono text-white">
-            {PROVIDER_LIST.length}
+            {enabledProviders.length}
           </div>
-          <div className="text-xs text-slate-600 font-mono">providers monitored</div>
+          <div className="text-xs text-slate-600 font-mono">providers enabled</div>
         </div>
       </div>
 
@@ -77,7 +77,7 @@ export function DashboardView() {
           Provider Overview
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {PROVIDER_LIST.map(provider => (
+          {enabledProviders.map(provider => (
             <ProviderStatCard key={provider} provider={provider} />
           ))}
         </div>

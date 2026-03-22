@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'MissionCTL — AI Command Center',
-  description: 'World-class mission control for all your AI subscriptions. Monitor token usage, costs, model news, and more.',
+  description: 'Mission control for your entire AI stack. Monitor costs, compare models, manage API keys across Claude, OpenAI, Gemini, Groq, Mistral, DeepSeek, and 10+ more providers.',
 };
 
 export default function RootLayout({
