@@ -1,130 +1,113 @@
-// ============================================================
-// Core Types for MissionCTL
-// ============================================================
+// ─── Hermes Agent Types ────────────────────────────────────────
 
-export type AIProvider = 'claude' | 'openai' | 'gemini' | 'groq';
+export type AgentStatus = 'online' | 'offline' | 'busy' | 'error';
 
-export interface ProviderConfig {
-  id: AIProvider;
+export type DeviceType = 'pc' | 'tablet' | 'server' | 'uconsole';
+
+export interface HermesAgent {
+  id: string;
   name: string;
-  color: string;
-  glowClass: string;
-  borderClass: string;
-  textClass: string;
-  bgClass: string;
-  icon: string;
-  website: string;
+  device: DeviceType;
+  tailscaleIp: string;
+  port: number;
+  model: string;       // e.g. "hermes3:latest"
+  status: AgentStatus;
+  lastSeen: string | null;
+  description: string;
+  color: string;       // Accent color for this agent's card
 }
 
-export interface APIKey {
-  provider: AIProvider;
-  key: string;
-  isValid: boolean | null;
-  lastTested: string | null;
-  accountInfo?: AccountInfo;
+export interface OllamaModel {
+  name: string;
+  model: string;
+  size: number;
+  digest: string;
+  modified_at: string;
+  details?: {
+    family: string;
+    parameter_size: string;
+    quantization_level: string;
+  };
 }
 
-export interface AccountInfo {
-  tier?: string;
-  creditBalance?: number;
-  currency?: string;
-  usageThisMonth?: number;
-  requestsThisMonth?: number;
+export interface RunningModel {
+  name: string;
+  model: string;
+  size: number;
+  size_vram: number;
+  expires_at: string;
+}
+
+export interface AgentHealth {
+  agentId: string;
+  status: AgentStatus;
+  models: OllamaModel[];
+  runningModels: RunningModel[];
+  checkedAt: string;
+}
+
+// ─── Chat types ────────────────────────────────────────────────
+
+export type MessageRole = 'user' | 'assistant' | 'system';
+
+export interface ChatMessage {
+  id: string;
+  agentId: string;
+  role: MessageRole;
+  content: string;
+  timestamp: string;
+  toolCalls?: ToolCall[];
+  durationMs?: number;
+  tokensPerSec?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  isStreaming?: boolean;
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  input?: Record<string, unknown>;
+  output?: string;
+  status: 'running' | 'done' | 'error';
+  durationMs?: number;
+  startedAt: string;
+}
+
+export interface ChatSession {
+  agentId: string;
+  messages: ChatMessage[];
+  isStreaming: boolean;
+  lastActivity: string | null;
+}
+
+// ─── Broadcast ─────────────────────────────────────────────────
+
+export interface BroadcastResult {
+  agentId: string;
+  content: string;
+  isStreaming: boolean;
   error?: string;
 }
 
-export interface TokenUsage {
-  provider: AIProvider;
+// ─── Ollama API response shapes ─────────────────────────────────
+
+export interface OllamaChatChunk {
   model: string;
-  date: string;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  cost: number;
-  requests: number;
+  created_at: string;
+  message: {
+    role: string;
+    content: string;
+  };
+  done: boolean;
+  done_reason?: string;
+  total_duration?: number;
+  load_duration?: number;
+  prompt_eval_count?: number;
+  eval_count?: number;
+  eval_duration?: number;
 }
 
-export interface DailyUsage {
-  date: string;
-  claude: number;
-  openai: number;
-  gemini: number;
-  groq: number;
-  claudeCost: number;
-  openaiCost: number;
-  geminiCost: number;
-  groqCost: number;
-}
+export type NavTab = 'dashboard' | 'agents' | 'chat' | 'broadcast' | 'network' | 'settings';
 
-export interface ModelInfo {
-  id: string;
-  provider: AIProvider;
-  name: string;
-  inputCostPer1M: number;  // USD per 1M input tokens
-  outputCostPer1M: number; // USD per 1M output tokens
-  contextWindow: number;
-  description: string;
-  strengths: TaskType[];
-  speed: 'fast' | 'medium' | 'slow';
-  releasedAt?: string;
-}
-
-export type TaskType = 'coding' | 'creative' | 'search' | 'analysis' | 'chat';
-
-export interface EfficiencyScore {
-  provider: AIProvider;
-  model: string;
-  task: TaskType;
-  score: number; // 0-100
-  valueRating: string;
-  costPerTask: number;
-  qualityRating: number;
-  speedRating: number;
-}
-
-export interface NewsItem {
-  id: string;
-  title: string;
-  summary: string;
-  provider: AIProvider | 'general';
-  url: string;
-  publishedAt: string;
-  isNew: boolean;
-}
-
-export interface PromptTemplate {
-  id: string;
-  title: string;
-  description: string;
-  content: string;
-  category: TaskType;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-  usageCount: number;
-}
-
-export interface BridgeResult {
-  provider: AIProvider;
-  model: string;
-  estimatedCost: number;
-  estimatedTokens: number;
-  inputTokens: number;
-  outputTokens: number;
-  costBreakdown: string;
-}
-
-export interface BridgeQuery {
-  prompt: string;
-  estimatedOutputMultiplier: number; // expected output / input ratio
-}
-
-export interface AppState {
-  apiKeys: Record<AIProvider, APIKey>;
-  tokenUsage: TokenUsage[];
-  dailyUsage: DailyUsage[];
-  prompts: PromptTemplate[];
-  newsItems: NewsItem[];
-  activeTab: string;
-  isLoading: boolean;
-}
+export type Theme = 'dark';

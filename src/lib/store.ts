@@ -1,226 +1,221 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { AIProvider, APIKey, DailyUsage, NewsItem, PromptTemplate, TokenUsage } from './types';
-import { generateMockDailyUsage } from './utils';
-import { PROVIDER_LIST } from './providers';
+import type {
+  AgentHealth,
+  AgentStatus,
+  BroadcastResult,
+  ChatMessage,
+  ChatSession,
+  HermesAgent,
+  NavTab,
+  ToolCall,
+} from './types';
+import { DEFAULT_AGENTS } from './agents';
 
-interface MissionStore {
-  // API Keys
-  apiKeys: Record<AIProvider, APIKey>;
-  setApiKey: (provider: AIProvider, key: string) => void;
-  setKeyValidation: (provider: AIProvider, isValid: boolean, accountInfo?: APIKey['accountInfo']) => void;
-  clearApiKey: (provider: AIProvider) => void;
+interface HermesStore {
+  // ─── Agents ───────────────────────────────────────────────
+  agents: HermesAgent[];
+  agentHealth: Record<string, AgentHealth>;
+  setAgents: (agents: HermesAgent[]) => void;
+  updateAgent: (id: string, updates: Partial<HermesAgent>) => void;
+  setAgentHealth: (id: string, health: AgentHealth) => void;
+  setAgentStatus: (id: string, status: AgentStatus) => void;
 
-  // Usage Data
-  tokenUsage: TokenUsage[];
-  dailyUsage: DailyUsage[];
-  addTokenUsage: (usage: TokenUsage) => void;
-  setDailyUsage: (usage: DailyUsage[]) => void;
+  // ─── Chat sessions ────────────────────────────────────────
+  sessions: Record<string, ChatSession>;
+  addMessage: (agentId: string, msg: ChatMessage) => void;
+  appendStreamChunk: (agentId: string, msgId: string, chunk: string) => void;
+  finalizeMessage: (agentId: string, msgId: string, updates: Partial<ChatMessage>) => void;
+  addToolCall: (agentId: string, msgId: string, toolCall: ToolCall) => void;
+  updateToolCall: (agentId: string, msgId: string, toolCallId: string, updates: Partial<ToolCall>) => void;
+  clearSession: (agentId: string) => void;
+  setStreaming: (agentId: string, streaming: boolean) => void;
 
-  // News
-  newsItems: NewsItem[];
-  setNewsItems: (items: NewsItem[]) => void;
-  markNewsRead: (id: string) => void;
+  // ─── Broadcast ────────────────────────────────────────────
+  broadcastResults: Record<string, BroadcastResult>;
+  setBroadcastResult: (agentId: string, result: BroadcastResult) => void;
+  clearBroadcast: () => void;
 
-  // Prompts
-  prompts: PromptTemplate[];
-  addPrompt: (prompt: Omit<PromptTemplate, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => void;
-  updatePrompt: (id: string, updates: Partial<PromptTemplate>) => void;
-  deletePrompt: (id: string) => void;
-  incrementPromptUsage: (id: string) => void;
-
-  // UI State
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
+  // ─── UI state ─────────────────────────────────────────────
+  activeTab: NavTab;
+  setActiveTab: (tab: NavTab) => void;
+  activeChatAgentId: string | null;
+  setActiveChatAgentId: (id: string | null) => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
 }
 
-const defaultApiKey = (provider: AIProvider): APIKey => ({
-  provider,
-  key: '',
-  isValid: null,
-  lastTested: null,
-});
+function defaultSession(agentId: string): ChatSession {
+  return {
+    agentId,
+    messages: [],
+    isStreaming: false,
+    lastActivity: null,
+  };
+}
 
-const DEFAULT_PROMPTS: PromptTemplate[] = [
-  {
-    id: 'p1',
-    title: 'Senior Code Review',
-    description: 'Thorough code review with security and performance focus',
-    content: `You are a senior software engineer with 15+ years of experience. Review the following code for:
-1. Security vulnerabilities (OWASP Top 10)
-2. Performance bottlenecks
-3. Code smell and maintainability issues
-4. Missing error handling
-5. Test coverage gaps
-
-Provide specific, actionable feedback with code examples for improvements.
-
-Code to review:
-[PASTE CODE HERE]`,
-    category: 'coding',
-    tags: ['code-review', 'security', 'performance'],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    usageCount: 0,
-  },
-  {
-    id: 'p2',
-    title: 'Creative Story Spark',
-    description: 'Generate compelling story ideas with rich world-building',
-    content: `Create a compelling story concept with the following elements:
-- Genre: [GENRE]
-- Protagonist: A complex character with a clear flaw and hidden strength
-- Core conflict: Something that challenges their worldview
-- Setting: Vivid and atmospheric
-- Theme: A universal human truth
-
-Provide: premise (2 sentences), protagonist backstory, 3 key plot points, and a surprising twist.`,
-    category: 'creative',
-    tags: ['storytelling', 'worldbuilding', 'creative-writing'],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    usageCount: 0,
-  },
-  {
-    id: 'p3',
-    title: 'Deep Research Analyst',
-    description: 'Structured research with sources and confidence levels',
-    content: `Research the following topic thoroughly and provide:
-
-Topic: [YOUR TOPIC]
-
-Structure your response as:
-## Executive Summary (3 bullets)
-## Key Findings (with confidence level: High/Medium/Low)
-## Contradicting Evidence
-## Knowledge Gaps
-## Recommended Next Steps
-
-Be explicit about what you know with high confidence vs. what is uncertain.`,
-    category: 'search',
-    tags: ['research', 'analysis', 'factual'],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    usageCount: 0,
-  },
-  {
-    id: 'p4',
-    title: 'System Architecture Advisor',
-    description: 'Design scalable system architectures with trade-offs',
-    content: `As a principal architect, design a system for the following requirements:
-
-Requirements: [YOUR REQUIREMENTS]
-
-Provide:
-1. High-level architecture diagram (text-based)
-2. Technology stack with justification
-3. Data model overview
-4. Scaling strategy
-5. Top 3 architectural trade-offs
-6. Estimated infrastructure cost range
-
-Consider: reliability, scalability, maintainability, and cost optimization.`,
-    category: 'analysis',
-    tags: ['architecture', 'system-design', 'scalability'],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    usageCount: 0,
-  },
-];
-
-export const useMissionStore = create<MissionStore>()(
+export const useHermesStore = create<HermesStore>()(
   persist(
     (set, get) => ({
-      apiKeys: Object.fromEntries(
-        PROVIDER_LIST.map(p => [p, defaultApiKey(p)])
-      ) as Record<AIProvider, APIKey>,
+      // ─── Agents ─────────────────────────────────────────────
+      agents: DEFAULT_AGENTS,
+      agentHealth: {},
 
-      setApiKey: (provider, key) =>
+      setAgents: (agents) => set({ agents }),
+
+      updateAgent: (id, updates) =>
         set(state => ({
-          apiKeys: {
-            ...state.apiKeys,
-            [provider]: { ...state.apiKeys[provider], key, isValid: null, lastTested: null },
-          },
+          agents: state.agents.map(a => a.id === id ? { ...a, ...updates } : a),
         })),
 
-      setKeyValidation: (provider, isValid, accountInfo) =>
+      setAgentHealth: (id, health) =>
         set(state => ({
-          apiKeys: {
-            ...state.apiKeys,
-            [provider]: {
-              ...state.apiKeys[provider],
-              isValid,
-              lastTested: new Date().toISOString(),
-              accountInfo,
-            },
-          },
-        })),
-
-      clearApiKey: (provider) =>
-        set(state => ({
-          apiKeys: {
-            ...state.apiKeys,
-            [provider]: defaultApiKey(provider),
-          },
-        })),
-
-      tokenUsage: [],
-      dailyUsage: generateMockDailyUsage(7),
-
-      addTokenUsage: (usage) =>
-        set(state => ({ tokenUsage: [...state.tokenUsage, usage] })),
-
-      setDailyUsage: (usage) => set({ dailyUsage: usage }),
-
-      newsItems: [],
-      setNewsItems: (items) => set({ newsItems: items }),
-      markNewsRead: (id) =>
-        set(state => ({
-          newsItems: state.newsItems.map(n => n.id === id ? { ...n, isNew: false } : n),
-        })),
-
-      prompts: DEFAULT_PROMPTS,
-
-      addPrompt: (prompt) =>
-        set(state => ({
-          prompts: [
-            ...state.prompts,
-            {
-              ...prompt,
-              id: `p${Date.now()}`,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              usageCount: 0,
-            },
-          ],
-        })),
-
-      updatePrompt: (id, updates) =>
-        set(state => ({
-          prompts: state.prompts.map(p =>
-            p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
+          agentHealth: { ...state.agentHealth, [id]: health },
+          agents: state.agents.map(a =>
+            a.id === id ? { ...a, status: health.status, lastSeen: health.checkedAt } : a
           ),
         })),
 
-      deletePrompt: (id) =>
-        set(state => ({ prompts: state.prompts.filter(p => p.id !== id) })),
-
-      incrementPromptUsage: (id) =>
+      setAgentStatus: (id, status) =>
         set(state => ({
-          prompts: state.prompts.map(p =>
-            p.id === id ? { ...p, usageCount: p.usageCount + 1 } : p
-          ),
+          agents: state.agents.map(a => a.id === id ? { ...a, status } : a),
         })),
 
+      // ─── Sessions ────────────────────────────────────────────
+      sessions: {},
+
+      addMessage: (agentId, msg) =>
+        set(state => {
+          const session = state.sessions[agentId] ?? defaultSession(agentId);
+          return {
+            sessions: {
+              ...state.sessions,
+              [agentId]: {
+                ...session,
+                messages: [...session.messages, msg],
+                lastActivity: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      appendStreamChunk: (agentId, msgId, chunk) =>
+        set(state => {
+          const session = state.sessions[agentId];
+          if (!session) return state;
+          return {
+            sessions: {
+              ...state.sessions,
+              [agentId]: {
+                ...session,
+                messages: session.messages.map(m =>
+                  m.id === msgId ? { ...m, content: m.content + chunk } : m
+                ),
+              },
+            },
+          };
+        }),
+
+      finalizeMessage: (agentId, msgId, updates) =>
+        set(state => {
+          const session = state.sessions[agentId];
+          if (!session) return state;
+          return {
+            sessions: {
+              ...state.sessions,
+              [agentId]: {
+                ...session,
+                messages: session.messages.map(m =>
+                  m.id === msgId ? { ...m, ...updates, isStreaming: false } : m
+                ),
+              },
+            },
+          };
+        }),
+
+      addToolCall: (agentId, msgId, toolCall) =>
+        set(state => {
+          const session = state.sessions[agentId];
+          if (!session) return state;
+          return {
+            sessions: {
+              ...state.sessions,
+              [agentId]: {
+                ...session,
+                messages: session.messages.map(m =>
+                  m.id === msgId
+                    ? { ...m, toolCalls: [...(m.toolCalls ?? []), toolCall] }
+                    : m
+                ),
+              },
+            },
+          };
+        }),
+
+      updateToolCall: (agentId, msgId, toolCallId, updates) =>
+        set(state => {
+          const session = state.sessions[agentId];
+          if (!session) return state;
+          return {
+            sessions: {
+              ...state.sessions,
+              [agentId]: {
+                ...session,
+                messages: session.messages.map(m =>
+                  m.id === msgId
+                    ? {
+                        ...m,
+                        toolCalls: m.toolCalls?.map(tc =>
+                          tc.id === toolCallId ? { ...tc, ...updates } : tc
+                        ),
+                      }
+                    : m
+                ),
+              },
+            },
+          };
+        }),
+
+      clearSession: (agentId) =>
+        set(state => ({
+          sessions: {
+            ...state.sessions,
+            [agentId]: defaultSession(agentId),
+          },
+        })),
+
+      setStreaming: (agentId, streaming) =>
+        set(state => {
+          const session = state.sessions[agentId] ?? defaultSession(agentId);
+          return {
+            sessions: {
+              ...state.sessions,
+              [agentId]: { ...session, isStreaming: streaming },
+            },
+          };
+        }),
+
+      // ─── Broadcast ──────────────────────────────────────────
+      broadcastResults: {},
+      setBroadcastResult: (agentId, result) =>
+        set(state => ({
+          broadcastResults: { ...state.broadcastResults, [agentId]: result },
+        })),
+      clearBroadcast: () => set({ broadcastResults: {} }),
+
+      // ─── UI ──────────────────────────────────────────────────
       activeTab: 'dashboard',
       setActiveTab: (tab) => set({ activeTab: tab }),
+      activeChatAgentId: null,
+      setActiveChatAgentId: (id) => set({ activeChatAgentId: id }),
+      sidebarOpen: false,
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
     }),
     {
-      name: 'missionctl-store',
+      name: 'hermes-store',
       partialize: (state) => ({
-        apiKeys: state.apiKeys,
-        prompts: state.prompts,
-        dailyUsage: state.dailyUsage,
+        agents: state.agents,
+        sessions: state.sessions,
       }),
     }
   )

@@ -1,61 +1,66 @@
 'use client';
 
 import { Toaster } from 'react-hot-toast';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { TopBar } from '@/components/layout/TopBar';
-import { useMissionStore } from '@/lib/store';
+import { useHermesStore } from '@/lib/store';
+import { TopBar, Sidebar, BottomNav } from '@/components/layout/NavBar';
 import { DashboardView } from '@/components/views/DashboardView';
-import { VaultView } from '@/components/views/VaultView';
-import { InsightsView } from '@/components/views/InsightsView';
-import { PromptsView } from '@/components/views/PromptsView';
-import { BridgeView } from '@/components/views/BridgeView';
+import { AgentsView } from '@/components/views/AgentsView';
+import { ChatView } from '@/components/views/ChatView';
+import { BroadcastChat } from '@/components/chat/BroadcastChat';
+import { NetworkView } from '@/components/network/NetworkView';
+import { SettingsView } from '@/components/settings/SettingsView';
 
-const VIEWS: Record<string, React.ComponentType> = {
+const VIEWS = {
   dashboard: DashboardView,
-  vault: VaultView,
-  insights: InsightsView,
-  prompts: PromptsView,
-  bridge: BridgeView,
+  agents:    AgentsView,
+  chat:      ChatView,
+  broadcast: BroadcastChat,
+  network:   NetworkView,
+  settings:  SettingsView,
 };
 
 export default function Home() {
-  const activeTab = useMissionStore(s => s.activeTab);
+  const activeTab = useHermesStore(s => s.activeTab);
   const ActiveView = VIEWS[activeTab] ?? DashboardView;
 
   return (
     <>
-      {/* Background grid effect */}
-      <div className="fixed inset-0 cyber-grid pointer-events-none" />
-      <div className="fixed inset-0 bg-gradient-to-br from-purple-950/5 via-transparent to-blue-950/5 pointer-events-none" />
+      {/* Global ambient gradient */}
+      <div className="fixed inset-0 pointer-events-none" style={{
+        background: 'radial-gradient(ellipse at 30% 20%, rgba(191,90,242,0.04) 0%, transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(10,132,255,0.03) 0%, transparent 50%)',
+      }} />
 
-      <div className="flex min-h-screen">
-        <Sidebar />
+      <TopBar />
+      <Sidebar />
 
-        {/* Main content area */}
-        <div className="flex-1 flex flex-col lg:ml-56">
-          <TopBar />
-          <main className="flex-1 p-4 sm:p-6 overflow-auto">
-            <ActiveView />
-          </main>
+      {/* Main content */}
+      <main
+        className="min-h-dvh pt-14 pb-20 lg:pb-8 px-4 sm:px-5"
+        style={{ maxWidth: '100%' }}
+      >
+        <div className="max-w-6xl mx-auto py-5">
+          <ActiveView />
         </div>
-      </div>
+      </main>
+
+      <BottomNav />
 
       <Toaster
-        position="bottom-right"
+        position="top-center"
         toastOptions={{
+          duration: 3000,
           style: {
-            background: '#0f0f18',
-            color: '#e2e8f0',
-            border: '1px solid #1a1a2e',
-            fontFamily: 'var(--font-geist-mono)',
-            fontSize: '12px',
+            background: 'rgba(20,20,25,0.95)',
+            color: '#e8e8e8',
+            border: '1px solid rgba(255,255,255,0.1)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: '12px',
+            fontSize: '13px',
+            fontWeight: 500,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
           },
-          success: {
-            iconTheme: { primary: '#10b981', secondary: '#0f0f18' },
-          },
-          error: {
-            iconTheme: { primary: '#ef4444', secondary: '#0f0f18' },
-          },
+          success: { iconTheme: { primary: '#30d158', secondary: '#000' } },
+          error:   { iconTheme: { primary: '#ff453a', secondary: '#000' } },
         }}
       />
     </>

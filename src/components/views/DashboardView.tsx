@@ -1,97 +1,71 @@
 'use client';
 
-import { ProviderStatCard } from '@/components/dashboard/ProviderStatCard';
-import { NewsFeed } from '@/components/dashboard/NewsFeed';
-import { TokenChart } from '@/components/dashboard/TokenChart';
-import { PROVIDER_LIST } from '@/lib/providers';
-import { useMissionStore } from '@/lib/store';
-import { formatCost, formatTokens } from '@/lib/utils';
-import { Activity, TrendingUp, Cpu, DollarSign } from 'lucide-react';
+import { useHermesStore } from '@/lib/store';
+import { AgentCard } from '@/components/dashboard/AgentCard';
+import { ChatPanel } from '@/components/chat/ChatPanel';
 
 export function DashboardView() {
-  const dailyUsage = useMissionStore(s => s.dailyUsage);
+  const { agents, activeChatAgentId, setActiveChatAgentId, setActiveTab } = useHermesStore();
 
-  // Aggregate weekly totals
-  const weeklyTotals = dailyUsage.reduce(
-    (acc, d) => ({
-      claude: acc.claude + d.claude,
-      openai: acc.openai + d.openai,
-      gemini: acc.gemini + d.gemini,
-      groq: acc.groq + d.groq,
-      claudeCost: acc.claudeCost + d.claudeCost,
-      openaiCost: acc.openaiCost + d.openaiCost,
-      geminiCost: acc.geminiCost + d.geminiCost,
-      groqCost: acc.groqCost + d.groqCost,
-    }),
-    { claude: 0, openai: 0, gemini: 0, groq: 0, claudeCost: 0, openaiCost: 0, geminiCost: 0, groqCost: 0 }
-  );
-
-  const totalTokens = weeklyTotals.claude + weeklyTotals.openai + weeklyTotals.gemini + weeklyTotals.groq;
-  const totalCost = weeklyTotals.claudeCost + weeklyTotals.openaiCost + weeklyTotals.geminiCost + weeklyTotals.groqCost;
+  const onlineCount = agents.filter(a => a.status === 'online' || a.status === 'busy').length;
 
   return (
-    <div className="space-y-6">
-      {/* Summary bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-[#0f0f18] border border-[#1a1a2e] rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Activity size={14} className="text-purple-400" />
-            <span className="text-xs text-slate-500 font-mono">TOTAL TOKENS</span>
-          </div>
-          <div className="text-xl font-bold font-mono text-white">{formatTokens(totalTokens)}</div>
-          <div className="text-xs text-slate-600 font-mono">last 7 days (demo)</div>
-        </div>
-        <div className="bg-[#0f0f18] border border-[#1a1a2e] rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <DollarSign size={14} className="text-emerald-400" />
-            <span className="text-xs text-slate-500 font-mono">TOTAL SPEND</span>
-          </div>
-          <div className="text-xl font-bold font-mono text-white">{formatCost(totalCost)}</div>
-          <div className="text-xs text-slate-600 font-mono">last 7 days (demo)</div>
-        </div>
-        <div className="bg-[#0f0f18] border border-[#1a1a2e] rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingUp size={14} className="text-blue-400" />
-            <span className="text-xs text-slate-500 font-mono">AVG COST/DAY</span>
-          </div>
-          <div className="text-xl font-bold font-mono text-white">
-            {formatCost(totalCost / Math.max(1, dailyUsage.length))}
-          </div>
-          <div className="text-xs text-slate-600 font-mono">across all providers</div>
-        </div>
-        <div className="bg-[#0f0f18] border border-[#1a1a2e] rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Cpu size={14} className="text-amber-400" />
-            <span className="text-xs text-slate-500 font-mono">ACTIVE APIs</span>
-          </div>
-          <div className="text-xl font-bold font-mono text-white">
-            {PROVIDER_LIST.length}
-          </div>
-          <div className="text-xs text-slate-600 font-mono">providers monitored</div>
-        </div>
-      </div>
+    <>
+      {/* Chat panel overlay */}
+      {activeChatAgentId && (
+        <ChatPanel
+          agentId={activeChatAgentId}
+          onClose={() => setActiveChatAgentId(null)}
+        />
+      )}
 
-      {/* Provider cards */}
-      <div>
-        <h2 className="text-xs text-slate-500 font-mono uppercase tracking-wider mb-3">
-          Provider Overview
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {PROVIDER_LIST.map(provider => (
-            <ProviderStatCard key={provider} provider={provider} />
+      <div className="space-y-5">
+        {/* Welcome header */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="heading text-xl text-white">Agent Network</h1>
+            <p className="text-sm text-white/40 mt-1">
+              {onlineCount > 0
+                ? `${onlineCount} of ${agents.length} agents active on Tailscale`
+                : 'Configure agents in Settings, then ping to connect'}
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className="btn btn-ghost text-xs flex-shrink-0"
+          >
+            ⚙️ Configure
+          </button>
+        </div>
+
+        {/* Agent grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          {agents.map(agent => (
+            <AgentCard
+              key={agent.id}
+              agent={agent}
+              onOpenChat={setActiveChatAgentId}
+            />
           ))}
         </div>
-      </div>
 
-      {/* Charts + News */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="xl:col-span-2">
-          <TokenChart />
-        </div>
-        <div>
-          <NewsFeed />
-        </div>
+        {/* Empty state help */}
+        {onlineCount === 0 && (
+          <div className="glass-card p-6 text-center space-y-3">
+            <div className="text-3xl">🌐</div>
+            <div>
+              <p className="text-sm font-medium text-white/60">No agents reachable yet</p>
+              <p className="text-xs text-white/30 mt-1 max-w-sm mx-auto">
+                Set your Tailscale IPs in Settings, make sure Ollama is running on each device,
+                and the cards will ping automatically.
+              </p>
+            </div>
+            <button onClick={() => setActiveTab('settings')} className="btn btn-primary text-sm mx-auto">
+              Open Settings
+            </button>
+          </div>
+        )}
       </div>
-    </div>
+    </>
   );
 }
